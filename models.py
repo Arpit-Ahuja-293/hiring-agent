@@ -1,5 +1,5 @@
-from typing import List, Optional, Dict, Tuple, Any, Protocol, runtime_checkable
-from pydantic import BaseModel, Field, field_validator
+from typing import List, Optional, Dict, Tuple, Any, Type, Protocol, runtime_checkable
+from pydantic import BaseModel, Field, create_model, field_validator
 
 
 @runtime_checkable
@@ -213,18 +213,6 @@ class CategoryScore(BaseModel):
     evidence: str = Field(min_length=1, description="Evidence supporting the score")
 
 
-class Scores(BaseModel):
-    open_source: CategoryScore
-    self_projects: CategoryScore
-    production: CategoryScore
-    technical_skills: CategoryScore
-
-
-class BonusPoints(BaseModel):
-    total: float = Field(ge=0, le=20, description="Total bonus points")
-    breakdown: str = Field(description="Breakdown of bonus points")
-
-
 class Deductions(BaseModel):
     total: float = Field(
         ge=0,
@@ -233,12 +221,42 @@ class Deductions(BaseModel):
     reasons: str = Field(description="Reasons for deductions")
 
 
-class EvaluationData(BaseModel):
-    scores: Scores
-    bonus_points: BonusPoints
-    deductions: Deductions
-    key_strengths: List[str] = Field(min_items=1, max_items=5)
-    areas_for_improvement: List[str] = Field(min_items=1, max_items=5)
+def build_scores_model(categories) -> Type[BaseModel]:
+    """Build a ``Scores`` model with one CategoryScore field per role category.
+
+    Using ``create_model`` (rather than a loose ``Dict[str, CategoryScore]``)
+    keeps the emitted JSON schema concrete — the exact category property names —
+    so the LLM's structured output stays as constrained as the old fixed schema.
+    """
+    fields = {category.key: (CategoryScore, ...) for category in categories}
+    return create_model("Scores", **fields)
+
+
+def build_evaluation_model(role) -> Type[BaseModel]:
+    """Build the full ``EvaluationData`` model for a given role.
+
+    Categories/weights and the bonus cap come from the role definition, so each
+    role scores against its own rubric.
+    """
+    scores_model = build_scores_model(role.categories)
+
+    bonus_model = create_model(
+        "BonusPoints",
+        total=(
+            float,
+            Field(ge=0, le=role.bonus_max, description="Total bonus points"),
+        ),
+        breakdown=(str, Field(description="Breakdown of bonus points")),
+    )
+
+    return create_model(
+        "EvaluationData",
+        scores=(scores_model, ...),
+        bonus_points=(bonus_model, ...),
+        deductions=(Deductions, ...),
+        key_strengths=(List[str], Field(min_items=1, max_items=5)),
+        areas_for_improvement=(List[str], Field(min_items=1, max_items=5)),
+    )
 
 
 class GitHubProfile(BaseModel):

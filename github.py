@@ -331,7 +331,9 @@ def generate_profile_json(profile: GitHubProfile) -> Dict:
     return profile_data
 
 
-def generate_projects_json(projects: List[Dict]) -> List[Dict]:
+def generate_projects_json(
+    projects: List[Dict], position_title: str = "software engineering position"
+) -> List[Dict]:
     if not projects:
         return []
 
@@ -359,7 +361,9 @@ def generate_projects_json(projects: List[Dict]) -> List[Dict]:
 
         template_manager = TemplateManager()
         prompt = template_manager.render_template(
-            "github_project_selection", projects_data=projects_json
+            "github_project_selection",
+            projects_data=projects_json,
+            position_title=position_title,
         )
 
         print(
@@ -456,7 +460,9 @@ def generate_projects_json(projects: List[Dict]) -> List[Dict]:
         return projects_data
 
 
-def fetch_and_display_github_info(github_url: str) -> Dict:
+def fetch_and_display_github_info(
+    github_url: str, position_title: str = "software engineering position"
+) -> Dict:
     logger.info(f"{github_url}")
     github_profile = fetch_github_profile(github_url)
     if not github_profile:
@@ -470,7 +476,7 @@ def fetch_and_display_github_info(github_url: str) -> Dict:
         print("\n❌ No repositories found or failed to fetch repository details.")
 
     profile_json = generate_profile_json(github_profile)
-    projects_json = generate_projects_json(projects)
+    projects_json = generate_projects_json(projects, position_title=position_title)
 
     result = {
         "profile": profile_json,
