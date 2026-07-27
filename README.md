@@ -231,8 +231,9 @@ You can leave it on during iteration. See the next section for details.
 <details>
 <summary><b>4) Evaluation</b></summary>
 
-- `evaluator.py` uses templates that encode fairness and scoring rules.
-- Scores include `open_source`, `self_projects`, `production`, and `technical_skills`, plus bonus and deductions, then an explanation for evidence.
+- `evaluator.py` scores the resume against the **role** selected on the command line.
+- Each role lives in `roles/<role_name>/` and defines its own scoring categories and weights in `role.json`, plus its own `criteria.jinja` and `system_message.jinja` prompts (encoding fairness and scoring rules).
+- The shipped `software_engineering_intern` role scores `open_source`, `self_projects`, `production`, and `technical_skills`, plus bonus and deductions, with evidence for each. Other roles can define entirely different categories.
 
 </details>
 
@@ -240,7 +241,7 @@ You can leave it on during iteration. See the next section for details.
 <summary><b>5) Output and CSV export</b></summary>
 
 - `score.py` prints a readable summary to stdout.
-- When `DEVELOPMENT_MODE=True` it creates or appends a `resume_evaluations.csv` with key fields, and caches intermediate JSON under `cache/`.
+- When `DEVELOPMENT_MODE=True` it creates or appends a per-role `resume_evaluations_<role>.csv` with key fields (columns follow the role's categories), and caches intermediate JSON under `cache/`.
 
 </details>
 
@@ -250,17 +251,44 @@ You can leave it on during iteration. See the next section for details.
 
 ### End to end scoring
 
-Provide a path to a resume PDF.
+Provide a path to a resume PDF and the role to score against. `--role` is the
+name of a directory under `roles/` and is **required**.
 
 ```bash
-$ python score.py ./resume/sample.pdf
+$ python score.py ./resume/sample.pdf --role software_engineering_intern
 ```
 
 What happens:
 
 1. If development mode is on, the PDF extraction result is cached to `cache/resumecache_<basename>.json`.
 2. If a GitHub profile is found in the resume, repositories are fetched and cached to `cache/githubcache_<basename>.json`.
-3. The evaluator prints a report and, in development mode, appends a CSV row to `resume_evaluations.csv`.
+3. The evaluator scores the resume against the selected role, prints a report and, in development mode, appends a CSV row to `resume_evaluations_<role>.csv`.
+
+### Roles
+
+A role bundles its rubric in `roles/<role_name>/`:
+
+```text
+roles/software_engineering_intern/
+├── role.json           # categories, weights (max), bonus_max, score bounds, position_title
+├── criteria.jinja      # evaluation criteria prompt (receives {{ text_content }})
+└── system_message.jinja
+```
+
+`role.json` drives the scoring schema, the printed report, the CSV columns, and
+the score caps — so each role can score against its own categories and weights.
+
+To add a role, scaffold one with basic template files and then edit them:
+
+```bash
+$ python score.py --init-role backend_engineer
+# edit roles/backend_engineer/{role.json,criteria.jinja,system_message.jinja}
+$ python score.py ./resume/sample.pdf --role backend_engineer
+```
+
+`--init-role` creates the role directory with placeholder categories and prompts
+(it only scaffolds; it does not score a resume). You can also copy an existing
+role directory instead.
 
 ---
 
@@ -285,14 +313,18 @@ What happens:
 │       ├── education.jinja
 │       ├── github_project_selection.jinja
 │       ├── projects.jinja
-│       ├── resume_evaluation_criteria.jinja
-│       ├── resume_evaluation_system_message.jinja
 │       ├── skills.jinja
 │       ├── system_message.jinja
 │       └── work.jinja
 ├── providers.json
 ├── pymupdf_rag.py
 ├── requirements.txt
+├── roles.py
+├── roles/
+│   └── software_engineering_intern/
+│       ├── role.json
+│       ├── criteria.jinja
+│       └── system_message.jinja
 ├── score.py
 └── transform.py
 ```
